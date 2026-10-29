@@ -1,0 +1,21 @@
+{
+  "name": "full-stack-app",
+  "version": "1.0.0",
+  "description": "Full-stack web app with Express backend and frontend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "full-stack",
+    "express",
+    "node",
+    "frontend"
+  ],
+  "author": "KilimanjaroDev",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Full-Stack App</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Full-Stack App</h1>
+        <p>Your frontend and backend are connected.</p>
+      </header>
+
+      <section class="card">
+        <h2>Backend status</h2>
+        <p id="health-status">Checking connection...</p>
+      </section>
+
+      <section class="card">
+        <h2>Send a message</h2>
+        <form id="message-form">
+          <input
+            id="message-input"
+            type="text"
+            placeholder="Type a message"
+            maxlength="200"
+            required
+          />
+          <button type="submit">Send</button>
+        </form>
+        <p id="message-response">No message sent yet.</p>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
