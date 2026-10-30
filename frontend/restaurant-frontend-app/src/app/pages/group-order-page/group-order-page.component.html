@@ -1,0 +1,112 @@
+<main class="page">
+  @if (loading()) {
+    <p class="message" role="status">Loading group reservation…</p>
+  } @else if (errorMessage()) {
+    <section class="message error-message" role="alert">
+      <p>{{ errorMessage() }}</p>
+      <button class="secondary-button" type="button" (click)="loadGroup()">Try again</button>
+    </section>
+  } @else if (invite(); as groupInvite) {
+    <header class="page-header">
+      <div class="title-row">
+        <h1>Group Pre-Order</h1>
+        @if (displayStatus() === 'Submitted') {
+          <span class="group-status submitted-status">Sent to Restaurant</span>
+        } @else {
+          <span class="group-status">Collecting pre-orders</span>
+        }
+      </div>
+
+      <ul class="reservation-details" aria-label="Reservation details">
+        <li class="detail">
+          <span class="detail-icon location-icon" aria-hidden="true"></span>
+          <span>{{ groupInvite.LocationAddress }}</span>
+        </li>
+        <li class="detail">
+          <span class="detail-icon calendar-icon" aria-hidden="true"></span>
+          <span>{{ groupInvite.StartTime | date: 'MMM d, y' }}</span>
+        </li>
+        <li class="detail">
+          <span class="detail-icon clock-icon" aria-hidden="true"></span>
+          <span>{{ groupInvite.StartTime | date: 'HH:mm' }} - {{ groupInvite.EndTime | date: 'HH:mm' }}</span>
+        </li>
+        <li class="detail">
+          <span class="detail-icon guests-icon" aria-hidden="true"></span>
+          <span>{{ groupStatus()?.currentParticipants }} of {{ groupInvite.MaxGuestCount }} guests</span>
+        </li>
+      </ul>
+    </header>
+
+    <div class="sync-controls">
+      @if (updatedAt(); as lastUpdated) {
+        <p class="updated-at">Updated at {{ lastUpdated | date: 'HH:mm:ss' }}</p>
+      }
+      <button class="refresh-button" type="button" [disabled]="refreshing()" (click)="refreshNow()">Refresh</button>
+    </div>
+    @if (refreshError()) {
+      <p class="refresh-warning" role="status">
+        Couldn't refresh. Showing data from {{ updatedAt() | date: 'HH:mm:ss' }}.
+      </p>
+    }
+
+    @if (unsubmittedCount() > 0 && displayStatus() === 'Open') {
+      <p class="pending-notice" role="status">
+        {{ unsubmittedCount() }}
+        {{ unsubmittedCount() === 1 ? "participant hasn't" : "participants haven't" }} submitted their cart yet —
+        their dishes won't be included in the order
+      </p>
+    }
+
+    @if (!hasDishes()) {
+      <p class="empty-message">Participants haven't added any dishes yet</p>
+    }
+
+    <ul class="participants">
+      @for (person of participants(); track person.id) {
+        <li><app-participant-card [participant]="person" [isMe]="person.id === ownerSessionId()" /></li>
+      }
+    </ul>
+
+    <section class="consolidated-order" aria-labelledby="consolidated-title">
+      <h2 id="consolidated-title">Consolidated pre-order</h2>
+      @if (consolidatedOrder().items.length) {
+        <ul class="consolidated-items">
+          @for (item of consolidatedOrder().items; track item.dish.id) {
+            <li>
+              <span>{{ item.dish.name }} × {{ item.quantity }}</span>
+              <span>{{ item.dish.price * item.quantity | currency }}</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="empty-message">No confirmed dishes</p>
+      }
+    </section>
+
+    <footer class="order-summary">
+      <p class="grand-total">
+        <span>Grand Total</span>
+        <span>{{ consolidatedOrder().total | currency }}</span>
+      </p>
+      @if (displayStatus() === 'Open') {
+        <button class="submit-button" type="button" [disabled]="!canSubmit()" (click)="openConfirmation()">
+          Submit Pre-Order
+        </button>
+      }
+    </footer>
+  }
+
+  @if (showConfirmation()) {
+    <app-modal title="Confirm Pre-Order" (closed)="closeConfirmation()">
+      <p>Submit this consolidated pre-order to the restaurant?</p>
+      <div modal-actions>
+        <button class="secondary-button" type="button" [disabled]="submitting()" (click)="closeConfirmation()">
+          Cancel
+        </button>
+        <button class="confirm-button" type="button" [disabled]="submitting()" (click)="submitPreOrder()">
+          {{ submitting() ? 'Submitting…' : 'Submit' }}
+        </button>
+      </div>
+    </app-modal>
+  }
+</main>
