@@ -238,13 +238,46 @@ public class WaiterServiceTests
     }
 
     [Fact]
+    public async Task GetLeastBusyWaiterAsync_ShouldUseLeastBusyExistingWaiter_WhenLocationHasNoWaiters()
+    {
+        const string locationId = "loc-without-waiters";
+        var busyWaiter = new WaiterListItem
+        {
+            UserId = "busy",
+            Reservations = new List<string> { "r1", "r2" },
+            LocationId = "other-location",
+        };
+        var existingWaiter = new WaiterListItem
+        {
+            UserId = "existing",
+            Reservations = new List<string> { "r3" },
+            LocationId = "14-baratashvili",
+        };
+
+        _mockWaiterRepository
+            .Setup(r => r.GetWaitersByLocationIdAsync(locationId))
+            .ReturnsAsync(new List<WaiterListItem>());
+        _mockWaiterRepository
+            .Setup(r => r.GetAllWaitersAsync())
+            .ReturnsAsync(new List<WaiterListItem> { busyWaiter, existingWaiter });
+
+        var result = await _waiterService.GetLeastBusyWaiterAsync(locationId);
+
+        Assert.Equal(existingWaiter.UserId, result.UserId);
+        _mockWaiterRepository.Verify(
+            r => r.GetAllWaitersAsync(),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task GetLeastBusyWaiterAsync_ShouldThrowValidationException_WhenNoWaitersFound()
     {
         var locationId = "loc-1";
         _mockWaiterRepository.Setup(r => r.GetWaitersByLocationIdAsync(locationId)).ReturnsAsync(new List<WaiterListItem>());
+        _mockWaiterRepository.Setup(r => r.GetAllWaitersAsync()).ReturnsAsync(new List<WaiterListItem>());
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() => _waiterService.GetLeastBusyWaiterAsync(locationId));
-        Assert.Contains("No waiters found", exception.Message);
+        Assert.Contains("No waiters are available", exception.Message);
     }
 
     [Fact]

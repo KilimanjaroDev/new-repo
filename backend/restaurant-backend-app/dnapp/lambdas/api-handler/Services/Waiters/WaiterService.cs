@@ -135,7 +135,13 @@ public class WaiterService : IWaiterService
         var waiters = await _waiterRepository.GetWaitersByLocationIdAsync(locationId);
         if (waiters.Count == 0)
         {
-            throw new ValidationException($"No waiters found for location ID {locationId}.");
+            waiters = await _waiterRepository.GetAllWaitersAsync();
+        }
+
+        if (waiters.Count == 0)
+        {
+            throw new ValidationException(
+                $"No waiters are available for location ID {locationId} or any other location.");
         }
 
         return waiters
