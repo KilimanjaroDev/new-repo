@@ -103,6 +103,77 @@
       </div>
     }
 
+    @if (role() === Roles.CUSTOMER && hasPreOrderSummary()) {
+      <section
+        class="preorder-summary"
+        aria-label="Group pre-order summary"
+      >
+        @if (ownerPreOrderItems().length > 0) {
+          <strong>My Pre-Order</strong>
+          <ul>
+            @for (item of ownerPreOrderItems(); track item.dish.id) {
+              <li>
+                <span>{{ item.quantity }} × {{ item.dish.name }}</span>
+                <span>{{ item.dish.price * item.quantity | currency }}</span>
+              </li>
+            }
+          </ul>
+          <p class="preorder-subtotal">
+            <span>Subtotal</span>
+            <span>{{ ownerPreOrderTotal() | currency }}</span>
+          </p>
+        }
+
+        @for (
+          participant of guestPreOrderParticipants();
+          track participant.id
+        ) {
+          <div class="guest-preorder">
+            <strong>Guest: {{ participant.name }}</strong>
+            <ul>
+              @for (item of participant.items; track item.dish.id) {
+                <li>
+                  <span>{{ item.quantity }} × {{ item.dish.name }}</span>
+                  <span>{{ item.dish.price * item.quantity | currency }}</span>
+                </li>
+              }
+            </ul>
+            <p class="preorder-subtotal">
+              <span>Subtotal</span>
+              <span>{{ participant.total | currency }}</span>
+            </p>
+          </div>
+        }
+
+        @if (guestPreOrderItems().length > 0) {
+          <div class="guest-preorder">
+            <strong>Guest pre-order</strong>
+            <ul>
+              @for (item of guestPreOrderItems(); track item.dish.id) {
+                <li>
+                  <span>{{ item.quantity }} × {{ item.dish.name }}</span>
+                  <span>{{ item.dish.price * item.quantity | currency }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (r().groupPreOrderLoadFailed) {
+          <p class="preorder-load-error" role="status">
+            Guest orders could not be loaded. Please refresh the page.
+          </p>
+        }
+
+        @if (hasOrderItems()) {
+          <p class="preorder-total">
+            <strong>Grand Total</strong>
+            <strong>{{ preOrderTotal() | currency }}</strong>
+          </p>
+        }
+      </section>
+    }
+
     <div class="details-line">
       <span class="details">
         <img
@@ -162,13 +233,26 @@
             </button>
           }
         } @else if (role() === Roles.CUSTOMER) {
-          <button
-            type="button"
-            class="button button--primary button--large"
-            (click)="onPreOrder()"
-          >
-            Pre-order
-          </button>
+          @if (
+            r().groupPreOrderAvailable &&
+            r().hasSubmittedPreOrder
+            ) {
+            <button
+              type="button"
+              class="button button--primary button--large"
+              (click)="onGroupPreOrder()"
+            >
+              Group Pre-Order
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="button button--primary button--large"
+              (click)="onPreOrder()"
+            >
+              Pre-order
+            </button>
+          }
         }
       }
 

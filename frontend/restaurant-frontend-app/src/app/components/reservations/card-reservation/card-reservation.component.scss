@@ -159,3 +159,55 @@
   font-size: 0.875rem;
   line-height: 1rem;
 }
+
+.preorder-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  background-color: color.$neutral-100;
+  border-radius: 0.75rem;
+
+  ul {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.875rem;
+
+    li {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+  }
+
+  .guest-preorder {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid color.$neutral-200;
+  }
+
+  .preorder-subtotal {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+  }
+
+  .preorder-total {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.5rem 0 0;
+    padding-top: 0.5rem;
+    border-top: 1px solid color.$neutral-200;
+    font-size: 0.875rem;
+  }
+
+  .preorder-load-error {
+    margin: 0.5rem 0 0;
+    color: color.$neutral-700;
+    font-size: 0.8125rem;
+  }
+}

@@ -11,10 +11,11 @@
         <div class="order-item-dish">
           <img
             class="dish-image"
-            [src]="item.dish.imageUrl"
+            [src]="dishImageUrl(item.dish.imageUrl)"
             [alt]="item.dish.name"
             width="96"
             height="96"
+            (error)="onDishImageError($event)"
           />
 
           <div class="container">

@@ -3,11 +3,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
-import { EMPTY, Subscription, catchError, exhaustMap, finalize, forkJoin, map, switchMap, tap, timer } from 'rxjs';
+import { EMPTY, Subscription, catchError, exhaustMap, finalize, forkJoin, map, of, switchMap, tap, throwError, timer } from 'rxjs';
 import { ParticipantCardComponent } from '@app/components/group-orders/participant-card/participant-card.component';
 import { GroupReservationStatus, GroupStatusResponse } from '@app/models/group-orders/group-status.model';
+import { Order } from '@app/models/orders/order.model';
 import { consolidatePreOrder } from '@app/shared/helpers/consolidate-pre-order';
 import { GroupOrdersService } from '@app/services/group-orders/group-orders.service';
+import { PreOrdersService } from '@app/services/pre-orders/pre-orders.service';
 import { ToastService } from '@app/services/toast/toast.service';
 import { GuestInvite } from '@app/models/reservations/guest-invite.model';
 import { Participant } from '@app/models/group-orders/participant.model';
@@ -25,6 +27,7 @@ export class GroupOrderPageComponent {
 
   private readonly route = inject(ActivatedRoute);
   private readonly groupOrdersService = inject(GroupOrdersService);
+  private readonly preOrdersService = inject(PreOrdersService);
   private readonly toastService = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   private syncSubscription?: Subscription;
@@ -33,6 +36,7 @@ export class GroupOrderPageComponent {
   readonly invite = signal<GuestInvite | null>(null);
   readonly participants = signal<Participant[]>([]);
   readonly ownerSessionId = signal<string | null>(null);
+  readonly ownerOrder = signal<Order | null>(null);
   readonly groupStatus = signal<GroupStatusResponse | null>(null);
   readonly loading = signal(true);
   readonly errorMessage = signal('');
@@ -71,19 +75,28 @@ export class GroupOrderPageComponent {
       .getGroupInvite$(reservationId)
       .pipe(
         switchMap((invite) =>
-          forkJoin({
-            sessions: this.groupOrdersService.getSessions$(invite.GroupReservationId),
-            ownerSessionId: this.groupOrdersService.getOwnerSessionId$(reservationId),
-            status: this.groupOrdersService.getStatus$(invite.GroupReservationId),
-          }).pipe(map((data) => ({ invite, ...data }))),
+          this.groupOrdersService.getOwnerSessionId$(reservationId).pipe(
+            switchMap((ownerSessionId) =>
+              forkJoin({
+                sessions: this.groupOrdersService.getSessions$(invite.GroupReservationId),
+                status: this.groupOrdersService.getStatus$(invite.GroupReservationId),
+                ownerOrder: this.preOrdersService.getByReservationId(reservationId, true).pipe(
+                  catchError((error: HttpErrorResponse) =>
+                    error.status === 404 ? of(null) : throwError(() => error),
+                  ),
+                ),
+              }).pipe(map((data) => ({ invite, ownerSessionId, ...data }))),
+            ),
+          ),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ invite, sessions, ownerSessionId, status }) => {
+        next: ({ invite, sessions, ownerSessionId, status, ownerOrder }) => {
           this.invite.set(invite);
-          this.participants.set(sessions.participants);
+          this.ownerOrder.set(ownerOrder);
           this.ownerSessionId.set(ownerSessionId);
+          this.participants.set(this.withOwnerPreOrder(sessions.participants, ownerSessionId));
           this.groupStatus.set(status);
           this.updatedAt.set(new Date());
           this.loading.set(false);
@@ -167,7 +180,10 @@ export class GroupOrderPageComponent {
       status: this.groupOrdersService.getStatus$(invite.GroupReservationId, { silent: true }),
     }).pipe(
       tap(({ sessions, status }) => {
-        this.participants.set(sessions.participants);
+        const ownerSessionId = this.ownerSessionId();
+        if (ownerSessionId) {
+          this.participants.set(this.withOwnerPreOrder(sessions.participants, ownerSessionId));
+        }
         this.groupStatus.set(status);
         this.updatedAt.set(new Date());
         if (status.status !== 'Open') this.stopSync();
@@ -178,5 +194,54 @@ export class GroupOrderPageComponent {
       }),
       finalize(() => this.refreshing.set(false)),
     );
+  }
+
+  private withOwnerPreOrder(
+    participants: Participant[],
+    ownerSessionId: string,
+  ): Participant[] {
+    const order = this.ownerOrder();
+    const ownerExists = participants.some(
+      (participant) => participant.id === ownerSessionId,
+    );
+    const participantsWithOwner = ownerExists
+      ? participants
+      : [
+          ...participants,
+          {
+            id: ownerSessionId,
+            type: 'Owner' as const,
+            name: 'You',
+            items: [],
+            total: 0,
+            isSubmitted: false,
+          },
+        ];
+    if (!order) return participantsWithOwner;
+
+    return participantsWithOwner.map((participant) => {
+      if (participant.id !== ownerSessionId) return participant;
+
+      const items = order.orderItems.map(({ dish, quantity }) => ({
+        dish: {
+          id: dish.id,
+          name: dish.name,
+          price: dish.price,
+          imageUrl: dish.imageUrl,
+          weight: dish.weight,
+        },
+        quantity,
+      }));
+
+      return {
+        ...participant,
+        items,
+        total: items.reduce(
+          (total, item) => total + item.dish.price * item.quantity,
+          0,
+        ),
+        isSubmitted: order.status === 1 || order.status === 3,
+      };
+    });
   }
 }

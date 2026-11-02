@@ -73,18 +73,25 @@ describe('CartComponent', () => {
       {
         orderId: 'order-1',
         status: 1,
+        orderItems: [{ quantity: 1, state: 1, dish: { id: 'dish-1', price: 14.99 } }],
       },
       {
         orderId: 'order-2',
         status: 2,
+        orderItems: [],
       },
       {
         orderId: 'order-3',
         status: 3,
+        orderItems: [
+          { quantity: 1, state: 1, dish: { id: 'dish-2', price: 9.99 } },
+          { quantity: 2, state: 2, dish: { id: 'dish-3', price: 100 } },
+        ],
       },
       {
         orderId: 'order-4',
         status: 0,
+        orderItems: [{ quantity: 1, state: 0, dish: { id: 'dish-4', price: 50 } }],
       },
     ] as Order[]);
 
@@ -93,6 +100,7 @@ describe('CartComponent', () => {
         .submittedOrders()
         .map((order) => order.status),
     ).toEqual([1, 3]);
+    expect(component.submittedOrdersTotal()).toBeCloseTo(24.98);
   });
 
   it('should return unsubmitted orders with status 0', () => {

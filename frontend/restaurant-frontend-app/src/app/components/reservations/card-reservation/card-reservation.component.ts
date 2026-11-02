@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -18,6 +18,7 @@ import {
 import { PlaceOrderWaiterComponent } from '@app/components/place-order-waiter/place-order-waiter.component';
 import { Roles } from '@app/shared/constants/roles';
 import { CustomSelectComponent } from '@app/shared/custom-components/custom-select/custom-select.component';
+import { combinePreOrderItems } from '@app/shared/helpers/combine-pre-order-items';
 
 interface ReservationStatusView {
   class: string;
@@ -35,6 +36,7 @@ interface WaiterPreOrderNavigationData {
   selector: 'app-card-reservation',
   standalone: true,
   imports: [
+    CurrencyPipe,
     DatePipe,
     CustomSelectComponent,
     PlaceOrderWaiterComponent,
@@ -129,6 +131,76 @@ export class CardReservationComponent {
     return this.r().preOrder?.orderItems?.length ?? 0;
   });
 
+  readonly preOrderItems = computed(() => {
+    const reservation = this.r();
+    const guestItems =
+      reservation.groupPreOrderParticipants?.length
+        ? reservation.groupPreOrderParticipants.flatMap((participant) =>
+            participant.items.map(({ dish, quantity }) => ({
+              dish: { id: dish.id, name: dish.name, price: dish.price },
+              quantity,
+            })),
+          )
+        : (reservation.groupPreOrderItems ?? []);
+
+    return combinePreOrderItems([
+      ...(reservation.preOrder?.orderItems ?? []).map(({ dish, quantity }) => ({
+        dish: { id: dish.id, name: dish.name, price: dish.price },
+        quantity,
+      })),
+      ...guestItems,
+    ]);
+  });
+
+  readonly ownerPreOrderItems = computed(() =>
+    (this.r().preOrder?.orderItems ?? []).map(({ dish, quantity }) => ({
+      dish: { id: dish.id, name: dish.name, price: dish.price },
+      quantity,
+    })),
+  );
+
+  readonly guestPreOrderParticipants = computed(() =>
+    this.r().groupPreOrderParticipants ?? [],
+  );
+
+  readonly guestPreOrderItems = computed(() => {
+    const participants = this.guestPreOrderParticipants();
+    if (participants.length > 0) {
+      return [];
+    }
+
+    return this.r().groupPreOrderItems ?? [];
+  });
+
+  readonly ownerPreOrderTotal = computed(() =>
+    this.ownerPreOrderItems().reduce(
+      (total, item) => total + item.dish.price * item.quantity,
+      0,
+    ),
+  );
+
+  readonly preOrderTotal = computed(() =>
+    this.preOrderItems().reduce(
+      (total, item) => total + item.dish.price * item.quantity,
+      0,
+    ),
+  );
+
+  readonly hasPreOrderSummary = computed(
+    () =>
+      this.ownerPreOrderItems().length > 0 ||
+      this.guestPreOrderParticipants().length > 0 ||
+      this.guestPreOrderItems().length > 0 ||
+      this.r().groupPreOrderLoadFailed === true,
+  );
+
+  readonly hasOrderItems = computed(
+    () =>
+      this.ownerPreOrderItems().length > 0 ||
+      this.guestPreOrderParticipants().length > 0 ||
+      this.guestPreOrderItems().length > 0,
+  );
+
   readonly canOpenWaiterPreOrder = computed(() => {
     return (
       this.preOrderItemCount() > 0 ||
@@ -173,6 +245,15 @@ export class CardReservationComponent {
       queryParams,
     });
   }
+
+  onGroupPreOrder(): void {
+    void this.router.navigate([
+      '/reservations',
+      this.r().id,
+      'group-order',
+    ]);
+  }
+
   onPreOrderWaiter(): void {
     if (this.preOrderItemCount() > 0) {
       this.navigateToWaiterPreOrder();

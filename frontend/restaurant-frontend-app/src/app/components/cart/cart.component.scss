@@ -60,6 +60,16 @@
   width: 100%;
 }
 
+.submitted-orders-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding-top: 16px;
+  border-top: 1px solid color.$neutral-200;
+  font-size: 1rem;
+}
+
 .list-header {
   display: flex;
   flex-direction: column;

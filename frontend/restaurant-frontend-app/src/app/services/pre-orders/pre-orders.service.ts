@@ -1,10 +1,11 @@
 import { inject, Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { API_BASE_URL } from '@app/shared/config/api-base-url.token';
 import { Order } from '@app/models/orders/order.model';
 import { DishListResponse } from '@app/models/dishes/dish-list-response.model';
 import { map, switchMap } from 'rxjs';
 import { CreateOrderRequest } from '@app/models/cart/create-order-request.model';
+import { SKIP_ERROR_TOAST } from '@app/auth/skip-error-toast.context';
 
 @Injectable({
   providedIn: 'root',
@@ -17,8 +18,9 @@ export class PreOrdersService {
     return this.http.get<Order[]>(`${this.baseUrl}/orders`);
   }
 
-  getByReservationId(reservationId: string) {
-    return this.http.get<Order>(`${this.baseUrl}/orders/${reservationId}`);
+  getByReservationId(reservationId: string, silent = false) {
+    const context = new HttpContext().set(SKIP_ERROR_TOAST, silent);
+    return this.http.get<Order>(`${this.baseUrl}/orders/${reservationId}`, { context });
   }
 
   addDishToPreOrderByReservationId(

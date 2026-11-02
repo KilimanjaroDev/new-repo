@@ -548,11 +548,19 @@ public class OrderServiceTests
     public async Task SubmitConsolidatedPreOrderAsync_SavesDishesAndSubmittedStatus(Reservation reservation, Order order)
     {
         const string customerId = "cust-1";
+        const string groupReservationId = "group-1";
         reservation.CustomerId = customerId;
         order.ReservationId = reservation.Id;
+        order.ConsolidatedGroupReservationId = null;
+        order.Dishes =
+        [
+            new() { DishId = "owner-dish", Quantity = 2, State = OrderItemState.Pending },
+            new() { DishId = "shared-dish", Quantity = 1, State = OrderItemState.Pending }
+        ];
         var dishes = new List<OrderItem>
         {
-            new() { DishId = "dish-1", Quantity = 3, State = OrderItemState.Pending }
+            new() { DishId = "shared-dish", Quantity = 3, State = OrderItemState.Pending },
+            new() { DishId = "guest-dish", Quantity = 1, State = OrderItemState.Pending }
         };
 
         _mockReservationRepository
@@ -562,11 +570,45 @@ public class OrderServiceTests
             .Setup(repository => repository.GetOrderByReservationIdAsync(reservation.Id))
             .ReturnsAsync(order);
 
-        await _orderService.SubmitConsolidatedPreOrderAsync(customerId, reservation.Id, dishes);
+        await _orderService.SubmitConsolidatedPreOrderAsync(customerId, reservation.Id, groupReservationId, dishes);
 
-        Assert.Equal(dishes, order.Dishes);
+        Assert.Equal(3, order.Dishes.Count);
+        Assert.Equal(2, order.Dishes.Single(dish => dish.DishId == "owner-dish").Quantity);
+        Assert.Equal(4, order.Dishes.Single(dish => dish.DishId == "shared-dish").Quantity);
+        Assert.Equal(1, order.Dishes.Single(dish => dish.DishId == "guest-dish").Quantity);
+        Assert.All(order.Dishes, dish => Assert.Equal(OrderItemState.Pending, dish.State));
+        Assert.Equal(groupReservationId, order.ConsolidatedGroupReservationId);
         Assert.Equal(OrderStatus.SubmittedByCustomer, order.Status);
         _mockOrderRepository.Verify(repository => repository.SaveOrderAsync(order), Times.Once);
+    }
+
+    [Theory]
+    [AutoData]
+    public async Task SubmitConsolidatedPreOrderAsync_RetryDoesNotDuplicateGuestDishes(Reservation reservation, Order order)
+    {
+        const string customerId = "cust-1";
+        const string groupReservationId = "group-1";
+        reservation.CustomerId = customerId;
+        order.ReservationId = reservation.Id;
+        order.Dishes = [new() { DishId = "owner-dish", Quantity = 2, State = OrderItemState.Pending }];
+        order.ConsolidatedGroupReservationId = groupReservationId;
+
+        _mockReservationRepository
+            .Setup(repository => repository.GetReservationByIdAsync(reservation.Id))
+            .ReturnsAsync(reservation);
+        _mockOrderRepository
+            .Setup(repository => repository.GetOrderByReservationIdAsync(reservation.Id))
+            .ReturnsAsync(order);
+
+        await _orderService.SubmitConsolidatedPreOrderAsync(
+            customerId,
+            reservation.Id,
+            groupReservationId,
+            [new OrderItem { DishId = "guest-dish", Quantity = 3, State = OrderItemState.Pending }]);
+
+        Assert.Single(order.Dishes);
+        Assert.Equal(2, order.Dishes[0].Quantity);
+        _mockOrderRepository.Verify(repository => repository.SaveOrderAsync(order), Times.Never);
     }
 
     [Theory]
@@ -582,7 +624,7 @@ public class OrderServiceTests
             .ReturnsAsync((Order?)null);
 
         await Assert.ThrowsAsync<ValidationException>(() => _orderService.SubmitConsolidatedPreOrderAsync(
-            "cust-1", reservation.Id, []));
+            "cust-1", reservation.Id, "group-1", []));
     }
 
     [Theory]

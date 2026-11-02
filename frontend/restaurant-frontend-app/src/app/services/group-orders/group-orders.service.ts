@@ -21,9 +21,9 @@ export class GroupOrdersService {
   private readonly http = inject(HttpClient);
   private readonly guestInviteService = inject(GuestInviteService);
 
-  getGroupInvite$(reservationId: string): Observable<GuestInvite> {
-    return this.guestInviteService.getInviteToken$(reservationId).pipe(
-      switchMap(({ token }) => this.guestInviteService.getInvite$(token)),
+  getGroupInvite$(reservationId: string, options: GroupOrdersRequestOptions = {}): Observable<GuestInvite> {
+    return this.guestInviteService.getInviteToken$(reservationId, options.silent).pipe(
+      switchMap(({ token }) => this.guestInviteService.getInvite$(token, options.silent)),
     );
   }
 

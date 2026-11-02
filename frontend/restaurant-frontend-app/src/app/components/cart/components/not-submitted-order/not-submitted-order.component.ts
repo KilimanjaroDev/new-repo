@@ -18,6 +18,8 @@ import { Order } from '@app/models/orders/order.model';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NotSubmittedOrderComponent {
+  private readonly fallbackDishImageUrl = 'assets/img/dish.png';
+
   readonly order = input.required<Order>();
 
   readonly submitted = output<string>();
@@ -34,6 +36,19 @@ export class NotSubmittedOrderComponent {
       0,
     ),
   );
+
+  dishImageUrl(imageUrl: string | null | undefined): string {
+    return imageUrl?.trim() || this.fallbackDishImageUrl;
+  }
+
+  onDishImageError(event: Event): void {
+    const image = event.target;
+    if (!(image instanceof HTMLImageElement) || image.getAttribute('src') === this.fallbackDishImageUrl) {
+      return;
+    }
+
+    image.src = this.fallbackDishImageUrl;
+  }
 
   incrementItemQuantity(itemId: string): void {
     const item = this.findOrderItem(itemId);

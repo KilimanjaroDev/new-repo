@@ -1,4 +1,5 @@
 import { FeedbackReservationResponseItem } from '../feedbacks/feedback-reservation-response-item.model';
+import { Participant } from '../group-orders/participant.model';
 import { Order } from '../orders/order.model';
 
 export interface Reservation {
@@ -14,9 +15,16 @@ export interface Reservation {
   restaurantName?: string;
   waiterId: string;
   hasSubmittedPreOrder?: boolean;
+  guestInviteLinkAvailable?: boolean;
+  groupPreOrderAvailable?: boolean;
   preOrder?: Order;
   preOrders?: Order[];
-  guestInviteLinkAvailable?: boolean;
+  groupPreOrderItems?: {
+    dish: { id: string; name: string; price: number };
+    quantity: number;
+  }[];
+  groupPreOrderParticipants?: Participant[];
+  groupPreOrderLoadFailed?: boolean;
 }
 
 export enum ReservationStatus {
@@ -40,8 +48,16 @@ export interface ReservationCustomer {
   customerId?: string;
   waiterId: string;
   hasSubmittedPreOrder?: boolean;
+  guestInviteLinkAvailable?: boolean;
+  groupPreOrderAvailable?: boolean;
   preOrder?: Order;
   preOrders?: Order[];
+  groupPreOrderItems?: {
+    dish: { id: string; name: string; price: number };
+    quantity: number;
+  }[];
+  groupPreOrderParticipants?: Participant[];
+  groupPreOrderLoadFailed?: boolean;
   createdByName?: string;
   createdByRole?: 'Customer' | 'Waiter';
 }

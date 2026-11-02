@@ -8,6 +8,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 
@@ -23,6 +24,7 @@ import { SubmittedOrderComponent } from './components/submitted-order/submitted-
   selector: 'app-cart',
   standalone: true,
   imports: [
+    CurrencyPipe,
     SubmittedOrderComponent,
     NotSubmittedOrderComponent,
     CancelOrderModalComponent,
@@ -49,6 +51,21 @@ export class CartComponent implements OnInit {
   readonly submittedOrders = computed(() =>
     this.orders().filter(
       (order) => order.status === 1 || order.status === 3,
+    ),
+  );
+
+  readonly submittedOrdersTotal = computed(() =>
+    this.submittedOrders().reduce(
+      (ordersTotal, order) =>
+        ordersTotal +
+        order.orderItems
+          .filter((item) => item.state !== 2)
+          .reduce(
+            (orderTotal, item) =>
+              orderTotal + item.dish.price * item.quantity,
+            0,
+          ),
+      0,
     ),
   );
 

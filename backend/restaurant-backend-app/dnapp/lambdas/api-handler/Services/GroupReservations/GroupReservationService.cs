@@ -34,17 +34,12 @@ public class GroupReservationService(
         GroupReservation groupReservation = await groupReservationRepository.GetGroupReservationByTokenAsync(token)
             ?? throw new GroupReservationNotFoundException();
 
-        if (groupReservation.Status != GroupReservationStatus.Open)
+        if (groupReservation.Status == GroupReservationStatus.Closed)
             throw new GroupReservationExpiredException();
 
         Task<Reservation?> reservationTask = reservationRepository.GetReservationByIdAsync(groupReservation.ReservationId);
-        Task<int> countTask = guestSessionRepository.CountByGroupReservationId(groupReservation.GroupReservationId);
 
         Reservation reservation = await reservationTask ?? throw new ValidationException("Associated reservation not found.");
-        int joinedGuestsCount = await countTask;
-
-        if (joinedGuestsCount + 1 >= reservation.GuestCount)
-            throw new GuestLimitExceededException();
 
         Table table = await tableRepository.GetTableAsync(reservation.TableId)
             ?? throw new InvalidOperationException("Associated table not found.");
@@ -137,10 +132,8 @@ public class GroupReservationService(
         if (reservation.Status != ReservationStatus.Reserved)
             throw new GroupReservationExpiredException("The group reservation is expired.");
 
-        GroupReservation groupReservation = (await groupReservationRepository.GetByReservationIdAsync(reservationId))!;
-
-        if (groupReservation.Status == GroupReservationStatus.Submitted)
-            throw new GroupReservationSubmittedException();
+        GroupReservation groupReservation = await groupReservationRepository.GetByReservationIdAsync(reservationId)
+            ?? throw new GroupReservationNotFoundException();
 
         if (groupReservation.Status == GroupReservationStatus.Closed)
             throw new GroupReservationExpiredException();
@@ -168,6 +161,16 @@ public class GroupReservationService(
             throw new ActionForbiddenException("Only the reservation owner can submit the group pre-order.");
         }
 
+        if (groupReservation.Status == GroupReservationStatus.Submitted)
+        {
+            throw new GroupReservationSubmittedException();
+        }
+
+        if (groupReservation.Status != GroupReservationStatus.Open)
+        {
+            throw new GroupReservationExpiredException();
+        }
+
         var sessions = await guestSessionRepository.GetAllByGroupReservationIdAsync(groupReservationId);
         var submittedSessions = sessions.Where(session => session.IsSubmitted).ToArray();
         if (submittedSessions.Length == 0)
@@ -191,7 +194,7 @@ public class GroupReservationService(
             throw new ValidationException("Submitted guest sessions do not contain any dishes.");
         }
 
-        await orderService.SubmitConsolidatedPreOrderAsync(userId, reservationId, consolidatedDishes);
+        await orderService.SubmitConsolidatedPreOrderAsync(userId, reservationId, groupReservationId, consolidatedDishes);
 
         groupReservation.Status = GroupReservationStatus.Submitted;
         await groupReservationRepository.SaveGroupReservationAsync(groupReservation);
@@ -201,4 +204,3 @@ public class GroupReservationService(
             .ToList();
     }
 }
-

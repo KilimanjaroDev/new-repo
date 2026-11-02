@@ -12,11 +12,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import {
   catchError,
+  exhaustMap,
   finalize,
   forkJoin,
   map,
   of,
   switchMap,
+  timer,
 } from 'rxjs';
 
 import { AuthenticationService } from '@app/auth/services/authentication.service';
@@ -35,10 +37,13 @@ import { Table } from '@app/models/tables/table.model';
 import { TimeRange } from '@app/models/tables/time-range.model';
 import { LocationsService } from '@app/services/locations/locations.service';
 import { PreOrdersService } from '@app/services/pre-orders/pre-orders.service';
+import { GroupOrdersService } from '@app/services/group-orders/group-orders.service';
 import { ReservationService } from '@app/services/reservation/reservation.service';
 import { TableService } from '@app/services/table/table.service';
 import { Roles } from '@app/shared/constants/roles';
 import { HeaderComponent } from '@app/shared/custom-components/header/header.component';
+import { Participant } from '@app/models/group-orders/participant.model';
+import { getSubmittedGuestPreOrderParticipants } from '@app/shared/helpers/submitted-guest-pre-orders';
 import {
   formatTime,
   revertFormatDate,
@@ -47,6 +52,11 @@ import {
 interface ReservationStatusView {
   class: string;
   label: string;
+}
+
+interface GuestPreOrderRefresh {
+  reservationId: string;
+  participants: Participant[];
 }
 
 @Component({
@@ -74,6 +84,7 @@ export class ReservationDashboardComponent implements OnInit {
   private readonly tableService = inject(TableService);
   private readonly locationsService = inject(LocationsService);
   private readonly ordersService = inject(PreOrdersService);
+  private readonly groupOrdersService = inject(GroupOrdersService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -116,6 +127,8 @@ export class ReservationDashboardComponent implements OnInit {
     },
   };
 
+  private guestPreOrderSyncStarted = false;
+
   readonly selectedReservationAsReservation =
     computed<Reservation | null>(() => {
       const reservation = this.selectedReservation();
@@ -144,6 +157,9 @@ export class ReservationDashboardComponent implements OnInit {
         reservation.hasSubmittedPreOrder,
         preOrder: reservation.preOrder,
         preOrders: reservation.preOrders,
+        groupPreOrderItems: reservation.groupPreOrderItems,
+        groupPreOrderParticipants:
+          reservation.groupPreOrderParticipants,
       };
     });
 
@@ -173,6 +189,7 @@ export class ReservationDashboardComponent implements OnInit {
     this.customerId.set(user.id);
 
     this.loadReservations();
+    this.startGuestPreOrderSync();
   }
 
   cancelReservation(id: string): void {
@@ -497,10 +514,7 @@ export class ReservationDashboardComponent implements OnInit {
 
                     return of(null);
                   }),
-                  map(
-                    (
-                      feedback,
-                    ): ReservationCustomer => {
+                  map((feedback): ReservationCustomer => {
                       const preOrder = orders.find(
                         (order) =>
                           order.reservationId ===
@@ -511,7 +525,7 @@ export class ReservationDashboardComponent implements OnInit {
                         feedback?.service != null ||
                         feedback?.cuisineExperience != null;
 
-                      return {
+                      const customerReservation: ReservationCustomer = {
                         ...reservation,
                         status:
                           reservation.status as unknown as ReservationStatusCustomer,
@@ -526,8 +540,33 @@ export class ReservationDashboardComponent implements OnInit {
                           (preOrder.status === 1 ||
                             preOrder.status === 3),
                       };
-                    },
-                  ),
+                      return customerReservation;
+                    }),
+                  switchMap((customerReservation) => {
+                    if (!customerReservation.groupPreOrderAvailable) {
+                      return of(customerReservation);
+                    }
+
+                    return this.getSubmittedGuestPreOrderParticipants$(
+                      reservation.id,
+                    ).pipe(
+                        map((participants) => ({
+                          ...customerReservation,
+                          groupPreOrderParticipants: participants,
+                          groupPreOrderLoadFailed: false,
+                        })),
+                        catchError((error) => {
+                          console.error(
+                            `Failed to load submitted guest orders for reservation ${reservation.id}:`,
+                            error,
+                          );
+                          return of({
+                            ...customerReservation,
+                            groupPreOrderLoadFailed: true,
+                          });
+                        }),
+                      );
+                  }),
                 ),
             ),
           );
@@ -549,6 +588,84 @@ export class ReservationDashboardComponent implements OnInit {
           this.reservations.set([]);
         },
       });
+  }
+
+  private startGuestPreOrderSync(): void {
+    if (this.guestPreOrderSyncStarted) {
+      return;
+    }
+
+    this.guestPreOrderSyncStarted = true;
+    timer(15_000, 15_000)
+      .pipe(
+        exhaustMap(() => {
+          const reservations = this.reservations().filter(
+            (reservation) => reservation.groupPreOrderAvailable,
+          );
+          if (reservations.length === 0) {
+            return of<GuestPreOrderRefresh[]>([]);
+          }
+
+          return forkJoin(
+            reservations.map((reservation) =>
+              this.getSubmittedGuestPreOrderParticipants$(reservation.id).pipe(
+                map((participants): GuestPreOrderRefresh => ({
+                  reservationId: reservation.id,
+                  participants,
+                })),
+                catchError((error) => {
+                  console.error(
+                    `Failed to refresh submitted guest orders for reservation ${reservation.id}:`,
+                    error,
+                  );
+                  return of(null);
+                }),
+              ),
+            ),
+          ).pipe(
+            map((updates) =>
+              updates.filter(
+                (update): update is GuestPreOrderRefresh =>
+                  update !== null,
+              ),
+            ),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((updates) => {
+        this.reservations.update((reservations) =>
+          reservations.map((reservation) => {
+            const update = updates.find(
+              (candidate) =>
+                candidate.reservationId === reservation.id,
+            );
+            return update
+              ? {
+                  ...reservation,
+                  groupPreOrderParticipants: update.participants,
+                  groupPreOrderLoadFailed: false,
+                }
+              : reservation;
+          }),
+        );
+      });
+  }
+
+  private getSubmittedGuestPreOrderParticipants$(reservationId: string) {
+    return this.groupOrdersService
+      .getGroupInvite$(reservationId, { silent: true })
+      .pipe(
+        switchMap((invite) =>
+          this.groupOrdersService.getSessions$(
+            invite.GroupReservationId,
+            { silent: true },
+          ),
+        ),
+        map((sessions) =>
+          getSubmittedGuestPreOrderParticipants(sessions.participants),
+        ),
+      );
   }
 
   private extractTableNumber(

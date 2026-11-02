@@ -5,6 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { GroupOrdersService } from '@app/services/group-orders/group-orders.service';
+import { PreOrdersService } from '@app/services/pre-orders/pre-orders.service';
 import { ToastService } from '@app/services/toast/toast.service';
 import { GroupSessionsResponse } from '@app/models/group-orders/group-sessions-response.model';
 import { GuestInvite } from '@app/models/reservations/guest-invite.model';
@@ -29,12 +30,14 @@ function buttonByText(root: ParentNode, text: string): HTMLButtonElement | undef
 
 describe('Рівень 3 · синхронізація', () => {
   let service: jasmine.SpyObj<GroupOrdersService>;
+  let preOrdersService: jasmine.SpyObj<PreOrdersService>;
 
   function create() {
     TestBed.configureTestingModule({
       imports: [GroupOrderPageComponent],
       providers: [
         { provide: GroupOrdersService, useValue: service },
+        { provide: PreOrdersService, useValue: preOrdersService },
         { provide: ToastService, useValue: jasmine.createSpyObj('ToastService', ['success', 'error', 'info']) },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ reservationId: 'res-1' }) } } },
       ],
@@ -45,6 +48,10 @@ describe('Рівень 3 · синхронізація', () => {
   }
 
   beforeEach(() => {
+    preOrdersService = jasmine.createSpyObj<PreOrdersService>('PreOrdersService', ['getByReservationId']);
+    preOrdersService.getByReservationId.and.returnValue(
+      throwError(() => new HttpErrorResponse({ status: 404 })),
+    );
     service = jasmine.createSpyObj<GroupOrdersService>('GroupOrdersService', [
       'getGroupInvite$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$',
     ]);

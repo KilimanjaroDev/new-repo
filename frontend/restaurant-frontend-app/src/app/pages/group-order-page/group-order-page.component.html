@@ -6,8 +6,9 @@
       <p>{{ errorMessage() }}</p>
       <button class="secondary-button" type="button" (click)="loadGroup()">Try again</button>
     </section>
-  } @else if (invite(); as groupInvite) {
-    <header class="page-header">
+  } @else {
+    @if (invite(); as groupInvite) {
+      <header class="page-header">
       <div class="title-row">
         <h1>Group Pre-Order</h1>
         @if (displayStatus() === 'Submitted') {
@@ -83,7 +84,7 @@
       }
     </section>
 
-    <footer class="order-summary">
+      <footer class="order-summary">
       <p class="grand-total">
         <span>Grand Total</span>
         <span>{{ consolidatedOrder().total | currency }}</span>
@@ -93,7 +94,8 @@
           Submit Pre-Order
         </button>
       }
-    </footer>
+      </footer>
+    }
   }
 
   @if (showConfirmation()) {

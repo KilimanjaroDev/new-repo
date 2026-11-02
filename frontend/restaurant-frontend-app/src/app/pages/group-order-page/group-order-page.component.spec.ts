@@ -5,9 +5,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { GroupOrdersService } from '@app/services/group-orders/group-orders.service';
+import { PreOrdersService } from '@app/services/pre-orders/pre-orders.service';
 import { ToastService } from '@app/services/toast/toast.service';
 import { GroupSessionsResponse } from '@app/models/group-orders/group-sessions-response.model';
 import { GuestInvite } from '@app/models/reservations/guest-invite.model';
+import { Order } from '@app/models/orders/order.model';
 import { GroupOrderPageComponent } from './group-order-page.component';
 
 const caesar = { id: 'dish1', name: 'Caesar Salad', price: 180 };
@@ -35,12 +37,14 @@ function buttonByText(root: ParentNode, text: string): HTMLButtonElement | undef
 
 describe('Рівень 2 · сторінка Owner Review', () => {
   let service: jasmine.SpyObj<GroupOrdersService>;
+  let preOrdersService: jasmine.SpyObj<PreOrdersService>;
 
   function create() {
     TestBed.configureTestingModule({
       imports: [GroupOrderPageComponent],
       providers: [
         { provide: GroupOrdersService, useValue: service },
+        { provide: PreOrdersService, useValue: preOrdersService },
         { provide: ToastService, useValue: jasmine.createSpyObj('ToastService', ['success', 'error', 'info']) },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ reservationId: 'res-1' }) } } },
       ],
@@ -51,6 +55,10 @@ describe('Рівень 2 · сторінка Owner Review', () => {
   }
 
   beforeEach(() => {
+    preOrdersService = jasmine.createSpyObj<PreOrdersService>('PreOrdersService', ['getByReservationId']);
+    preOrdersService.getByReservationId.and.returnValue(
+      throwError(() => new HttpErrorResponse({ status: 404 })),
+    );
     service = jasmine.createSpyObj<GroupOrdersService>('GroupOrdersService', [
       'getGroupInvite$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$',
     ]);
@@ -84,6 +92,83 @@ describe('Рівень 2 · сторінка Owner Review', () => {
       const text = create().element.textContent ?? '';
       expect(text).toContain('$540.00');
       expect(text).not.toContain('$760.00');
+    });
+
+    it('показує реальне замовлення Customer у картці My Pre-Order', () => {
+      const ownerOrder: Order = {
+        orderId: 'order-1',
+        reservationId: 'res-1',
+        reservationAddress: 'Rustaveli Avenue 48',
+        reservationTime: '',
+        status: 3,
+        orderItems: [{
+          dish: {
+            id: 'owner-dish',
+            name: 'Owner Salmon',
+            imageUrl: '',
+            price: 18.99,
+            state: 'Available',
+            weight: '',
+            dishType: '',
+            description: '',
+            calories: '',
+            proteins: '',
+            carbohydrates: '',
+            fats: '',
+            vitamins: '',
+          },
+          quantity: 2,
+          state: 0,
+        }],
+      };
+      preOrdersService.getByReservationId.and.returnValue(of(ownerOrder));
+
+      const { element } = create();
+
+      expect(element.textContent).toContain('Owner Salmon');
+      expect(element.textContent).toContain('$37.98');
+      expect(element.textContent).toContain('$397.98');
+    });
+
+    it('включає замовлення власника у Grand Total, якщо owner session не встигла потрапити у snapshot', () => {
+      const ownerOrder: Order = {
+        orderId: 'order-1',
+        reservationId: 'res-1',
+        reservationAddress: 'Rustaveli Avenue 48',
+        reservationTime: '',
+        status: 3,
+        orderItems: [{
+          dish: {
+            id: 'owner-dish',
+            name: 'Owner Salmon',
+            imageUrl: '',
+            price: 18.99,
+            state: 'Available',
+            weight: '',
+            dishType: '',
+            description: '',
+            calories: '',
+            proteins: '',
+            carbohydrates: '',
+            fats: '',
+            vitamins: '',
+          },
+          quantity: 2,
+          state: 0,
+        }],
+      };
+      const sessionsWithoutOwner = structuredClone(SESSIONS);
+      sessionsWithoutOwner.participants = sessionsWithoutOwner.participants.filter(
+        (participant) => participant.id !== 'owner',
+      );
+      service.getSessions$.and.returnValue(of(sessionsWithoutOwner));
+      preOrdersService.getByReservationId.and.returnValue(of(ownerOrder));
+
+      const { element } = create();
+
+      expect(element.textContent).toContain('My Pre-Order');
+      expect(element.textContent).toContain('Owner Salmon');
+      expect(element.textContent).toContain('$397.98');
     });
 
     it('однакові страви — одним рядком: «Caesar Salad × 3»', () => {

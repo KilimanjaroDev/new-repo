@@ -47,6 +47,21 @@ export const groupOrdersMockInterceptor: HttpInterceptorFn = (req, next) => {
   if (req.method === 'GET' && path.endsWith(`/reservations/${DEMO_RESERVATION_ID}/guest-session-id`)) {
     return respond(() => ({ guestSessionId: DEMO_OWNER_SESSION_ID }));
   }
+  if (req.method === 'GET' && path.endsWith(`/orders/${DEMO_RESERVATION_ID}`)) {
+    return respond(() => {
+      const owner = store.snapshot().participants.find((participant) => participant.id === DEMO_OWNER_SESSION_ID);
+      if (!owner) throw new MockHttpError(404, 'Order not found.');
+
+      return {
+        orderId: 'demo-order',
+        reservationId: DEMO_RESERVATION_ID,
+        reservationAddress: DEMO_INVITE.LocationAddress,
+        reservationTime: `${DEMO_INVITE.StartTime} - ${DEMO_INVITE.EndTime}`,
+        orderItems: owner.items.map((item) => ({ ...item, state: 0 })),
+        status: owner.isSubmitted ? 3 : 0,
+      };
+    });
+  }
   if (req.method === 'GET' && path.endsWith(groupBase)) {
     return respond(() => store.snapshot());
   }

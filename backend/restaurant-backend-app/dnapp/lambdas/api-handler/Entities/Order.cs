@@ -38,4 +38,7 @@ public class Order
     [DynamoDBProperty("status", typeof(EnumAsIntConverter<OrderStatus>))]
     [JsonPropertyName("status")]
     public OrderStatus Status { get; set; }
+
+    [DynamoDBProperty("consolidatedGroupReservationId")]
+    public string? ConsolidatedGroupReservationId { get; set; }
 }

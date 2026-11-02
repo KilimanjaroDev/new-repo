@@ -60,4 +60,18 @@ describe('NotSubmittedOrderComponent', () => {
   it('should calculate the total price', () => {
     expect(component.totalPrice()).toBe(20);
   });
+
+  it('should use the default dish image when the image URL is missing', () => {
+    expect(component.dishImageUrl('')).toBe('assets/img/dish.png');
+    expect(component.dishImageUrl(null)).toBe('assets/img/dish.png');
+  });
+
+  it('should use the default dish image when the original image fails to load', () => {
+    const image = fixture.nativeElement.querySelector('.dish-image') as HTMLImageElement;
+    image.src = 'https://example.invalid/missing.jpg';
+
+    image.dispatchEvent(new Event('error'));
+
+    expect(image.getAttribute('src')).toBe('assets/img/dish.png');
+  });
 });

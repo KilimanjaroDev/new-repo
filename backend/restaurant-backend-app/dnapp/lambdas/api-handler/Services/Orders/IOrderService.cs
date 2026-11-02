@@ -26,7 +26,7 @@ public interface IOrderService
     Task CancelPreOrderAsync(string customerId, string reservationId, ILambdaContext context);
 
     Task SubmitPreOrderAsync(string customerId, string reservationId, ILambdaContext context);
-    Task SubmitConsolidatedPreOrderAsync(string customerId, string reservationId, List<OrderItem> dishes);
+    Task SubmitConsolidatedPreOrderAsync(string customerId, string reservationId, string groupReservationId, List<OrderItem> dishes);
 
     Task UnSubmitPreOrderAsync(string customerId, string reservationId, ILambdaContext context);
 }

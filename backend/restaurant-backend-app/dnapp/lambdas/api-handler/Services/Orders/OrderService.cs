@@ -197,7 +197,7 @@ public class OrderService : IOrderService
         context.Logger.LogLine($"Pre-order {order.OrderId} for reservation {reservationId} submitted by customer {customerId}.");
     }
 
-    public async Task SubmitConsolidatedPreOrderAsync(string customerId, string reservationId, List<OrderItem> dishes)
+    public async Task SubmitConsolidatedPreOrderAsync(string customerId, string reservationId, string groupReservationId, List<OrderItem> dishes)
     {
         var reservation = await LoadReservationAsync(reservationId);
 
@@ -209,7 +209,27 @@ public class OrderService : IOrderService
         var order = await _orderRepository.GetOrderByReservationIdAsync(reservationId)
             ?? throw new ValidationException("Order not found.");
 
-        order.Dishes = dishes;
+        if (order.ConsolidatedGroupReservationId == groupReservationId)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(order.ConsolidatedGroupReservationId))
+        {
+            throw new ValidationException("This order has already been consolidated for another group reservation.");
+        }
+
+        order.Dishes = order.Dishes
+            .Concat(dishes)
+            .GroupBy(dish => dish.DishId)
+            .Select(group => new OrderItem
+            {
+                DishId = group.Key,
+                Quantity = group.Sum(dish => dish.Quantity),
+                State = OrderItemState.Pending
+            })
+            .ToList();
+        order.ConsolidatedGroupReservationId = groupReservationId;
         order.Status = OrderStatus.SubmittedByCustomer;
 
         await _orderRepository.SaveOrderAsync(order);
